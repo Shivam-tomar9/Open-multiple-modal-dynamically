@@ -1,0 +1,283 @@
+//Controller Code
+  public function myOrderList()
+    {
+
+      $store_id=FranchiseStore::select('id')->get();
+      
+      foreach($store_id as $store_ids)
+      {
+        $orders = Order::where('store_id', $store_ids->id)
+        ->join('cloths', 'cloths.id','orders.cloth_id')
+        ->join('category','category.id','cloths.category_id')
+        ->join('sub_category','sub_category.id','cloths.sub_category_id')
+        ->join('cloth_category','cloth_category.id','cloths.cloth_category_id')
+        ->select('category.category_name','orders.*','sub_category.sub_category','cloth_category.cloth_category_name')
+        ->orderBy('orders.created_at', 'desc') 
+        ->get();
+        
+    
+
+      $washermans=User::where('store_id',$store_ids->id)
+      ->where('role_id',2)
+      
+      ->get();
+
+      $deliveryBoy=User::where('store_id',$store_ids->id)
+      ->where('role_id',4)
+      
+      ->get();
+
+      }
+
+      
+      $users=User::where('role_id',6)->get();
+
+      foreach($users as $user)
+      {
+      $findInOrders=Order::where('user_id',$user->id)
+                 ->groupBy('invoice_number')
+                 ->where('product_id',NULL)
+                 ->orderby('created_at', 'DESC')
+                 ->get();
+              
+      }
+  
+      return view('franchise_dashboard.myOrderList',compact('orders','washermans','deliveryBoy','findInOrders'));
+    }
+
+//Blade file Code
+@extends('admin.layouts.app')
+
+@section('content')
+<style>
+    .td {}
+    .custom_button {
+        text-decoration: none !important;
+        color: white !important;
+    }
+    .modal-backdrop.fade.show {
+        display: none;
+    }
+    .modal-content{
+        margin-top:100px !important;
+    }
+    .modal-backdrop {
+    z-index: -1;
+    }
+</style>
+
+<!-- main content start -->
+<div class="main-content">
+    <div class="row">
+        <div class="col-12">
+            <div class="panel">
+                <div class="panel-header">
+                    <h5>My Order</h5>
+                </div>
+                <div class="panel-body">
+                    <div class="table-filter-option"></div>
+                    @if (session('error'))
+                        <div class="alert alert-danger">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+                    <div class="table-responsive">
+                        <table class="table table-dashed table-hover digi-dataTable all-product-table table-striped" id="allProductTable">
+                            <thead>
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Invoice Number</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $i = 1; ?>
+                                @foreach ($findInOrders as $findInOrder)
+                                    <tr>
+                                        <td>{{ $i }}</td>
+                                        <td>{{ $findInOrder->invoice_number }}</td>
+                                        <td>{{ $findInOrder->user->name }}</td>
+                                        <td>{{ $findInOrder->user->email }}</td>
+                                        <td>
+                                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#myModal{{ $findInOrder->invoice_number }}">View</button>
+                                            <div class="modal fade" id="myModal{{ $findInOrder->invoice_number }}" tabindex="-1" aria-labelledby="myModalLabel{{ $findInOrder->invoice_number }}" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <!-- Modal Header -->
+                                                        <div class="modal-header">
+                                                            <h4 class="modal-title" id="myModalLabel">Order Details</h4>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+
+                                                        <!-- Modal body -->
+                                                        <?php
+                                                        $orders = App\Models\Order::where('invoice_number', $findInOrder->invoice_number)
+                                                            ->join('cloths', 'cloths.id', 'orders.cloth_id')
+                                                            ->join('category', 'category.id', 'cloths.category_id')
+                                                            ->join('sub_category', 'sub_category.id', 'cloths.sub_category_id')
+                                                            ->join('cloth_category', 'cloth_category.id', 'cloths.cloth_category_id')
+                                                            ->select('category.category_name', 'orders.*', 'sub_category.sub_category', 'cloth_category.cloth_category_name')
+                                                            ->orderBy('orders.created_at', 'desc')
+                                                            ->get();
+                                                        ?>
+
+                                                        <div class="modal-body">
+                                                            <div style="overflow-x: scroll">
+                                                                <table class="table table-dashed table-hover digi-dataTable all-product-table table-striped">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Category Name</th>
+                                                                            <th>Sub Category Name</th>
+                                                                            <th>Cloth Category Name</th>
+                                                                            <th>Cloth Name</th>
+                                                                            <th>Action</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        @foreach ($orders as $order)
+                                                                            <tr>
+                                                                                <td>{{ $order->category_name }}</td>
+                                                                                <td>{{ $order->sub_category }}</td>
+                                                                                <td>{{ $order->cloth_category_name }}</td>
+                                                                                <td>{{ $order->cloth->cloth_name }}</td>
+                                                                                <td>
+                                                                                    @if($order->washerman_id > 0)
+                                                                                        <button type="button" class="btn btn-success">Already Assigned To Washerman</button>
+                                                                                    @else
+                                                                                        <a href="#" class="btn btn-sm btn-primary custom_button" data-bs-target="#exampleModalWasher{{ $order->id }}" data-bs-toggle="modal">Assign To Washerman</a>
+                                                                                    @endif
+
+
+                                                                                    @if($order->status == "Wash Completed" && $order->delivery_boy_id == 0)
+                                                                                        <a href="#" class="btn btn-sm btn-warning custom_button" data-bs-target="#exampleModalDelivery{{ $order->id }}" data-bs-toggle="modal">Assign To Delivery Boy</a>
+                                                                                    @elseif($order->delivery_boy_id > 0)
+                                                                                        <button type="button" class="btn btn-success">Already Assigned To Delivery Boy</button>
+                                                                                    @endif
+
+                                                                                    
+                                                                                </td>
+                                                                            </tr>
+                                                                        @endforeach
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Modal footer -->
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+                                            <!-- Washerman Modal -->
+                                            @foreach ($orders as $order)
+                                                <div class="modal fade" id="exampleModalWasher{{ $order->id }}" tabindex="-1" aria-labelledby="exampleModalLabelWasher{{ $order->id }}" aria-hidden="true">
+                                                    <div class="modal-dialog modal-lg">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title" id="exampleModalLabel">Assign Order to Washerman</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <form method="post" action="{{ route('admin.assign-order-to-washerman') }}">
+                                                                    @csrf
+                                                                    <input type="hidden" name="order_id" value="{{ $order->id }}">
+                                                                    <select name="washerman_id" class="form-control">
+                                                                        <option value="" selected disabled>Select Washerman</option>
+                                                                        @foreach ($washermans as $washerman)
+                                                                            <option value="{{ $washerman->id }}">{{ $washerman->name }}</option>
+                                                                        @endforeach
+                                                                    </select>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                                <button type="submit" class="btn btn-primary">Assign</button>
+                                                            </div>
+                                                                </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+
+                                            <!-- Delivery Boy Modal -->
+                                        @foreach ($orders as $order)
+                                            <div class="modal fade" id="exampleModalDelivery{{ $order->id }}" tabindex="-1" aria-labelledby="exampleModalLabelDelivery{{ $order->id }}" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="exampleModalLabel">Assign Order to Delivery Boy</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <form method="post" action="{{ route('admin.assign-order-to-delivery-boy') }}">
+                                                                @csrf
+                                                                <input type="hidden" name="order_id" value="{{ $order->id }}">
+                                                                <select name="delivery_boy_id" class="form-control">
+                                                                    <option value="" selected disabled>Select Delivery Boy</option>
+                                                                    @foreach ($deliveryBoy as $deliveryBoys)
+                                                                        <option value="{{ $deliveryBoys->id }}">{{ $deliveryBoys->name }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                            <button type="submit" class="btn btn-primary">Assign</button>
+                                                        </div>
+                                                            </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    @endforeach    
+                                    </tr>
+                                    <?php $i++; ?>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<script src="{{ asset('admin/dashboad/assets/vendor/js/jquery-3.6.0.min.js') }}"></script>
+<div class="modal fade" id="StatusModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content pasteHere">
+        </div>
+    </div>
+</div>
+<script>
+    setTimeout(function() {
+        document.getElementById('success-message').style.display = 'none';
+    }, 3000);
+</script>
+<script>
+    function call_modal(id, url){
+        $.ajax({
+            type: 'GET',
+            url: url,
+            data: { 'id': id },
+            beforeSend: function(){
+                $('.pasteHere').html('please wait...');
+            },
+            success: function (data) {
+                $('.pasteHere').html(data);
+            },
+            error: function() {
+                // Handle error
+            }
+        });
+    }
+</script>
+@endsection
